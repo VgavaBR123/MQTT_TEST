@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste MQTT com Gráfico</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #messages {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 300px;
+            overflow-y: scroll;
+        }
+        canvas {
+            max-width: 600px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Recepção de Dados via MQTT</h1>
+<div id="messages"></div>
+<canvas id="myChart"></canvas>
+
+<script>
+    // Conexão com o broker MQTT
+    const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
+
+    const ctx = document.getElementById('myChart').getContext('2d');
+    const chartData = {
+        labels: [],
+        datasets: [{
+            label: 'Valores Recebidos',
+            data: [],
+            borderColor: 'rgba(75, 192, 192, 1)',
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            borderWidth: 1
+        }]
+    };
+    const myChart = new Chart(ctx, {
+        type: 'line',
+        data: chartData,
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+
+    let count = 0;
+
+    client.on('connect', function () {
+        console.log('Conectado ao broker MQTT');
+
+        // Inscreva-se em um tópico
+        client.subscribe('aula/alerta/gava/humity', function (err) {
+            if (!err) {
+                console.log('Inscrito no tópico "aula/alerta/gava/humity"');
+            }
+        });
+    });
+
+    client.on('message', function (topic, message) {
+        // Mensagem recebida
+        const msg = message.toString();
+        console.log('Mensagem recebida: ' + msg);
+        
+        // Exiba a mensagem na página
+        const messagesDiv = document.getElementById('messages');
+        messagesDiv.innerHTML += `<p>${msg}</p>`;
+        messagesDiv.scrollTop = messagesDiv.scrollHeight; // Rola para baixo
+
+        // Adiciona a mensagem ao gráfico
+        if (chartData.labels.length < 10) { // Limita a 10 pontos
+            chartData.labels.push(`Entrada ${++count}`);
+            chartData.datasets[0].data.push(Number(msg)); // Assume que a mensagem é um número
+        } else {
+            chartData.labels.shift(); // Remove o primeiro rótulo
+            chartData.datasets[0].data.shift(); // Remove o primeiro dado
+            chartData.labels.push(`Entrada ${count + 1}`);
+            chartData.datasets[0].data.push(Number(msg));
+        }
+
+        myChart.update();
+    });
+
+    // Atualiza o gráfico a cada minuto
+    setInterval(() => {
+        if (chartData.labels.length > 0) {
+            console.log("Atualizando gráfico...");
+            myChart.update();
+        }
+    }, 60000); // 60000 ms = 1 minuto
+
+</script>
+
+</body>
+</html>
